@@ -1,0 +1,8 @@
+.shiny-text {
+  display: inline-block;
+  font-size: 2.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1em;
+}
