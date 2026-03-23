@@ -1,5 +1,6 @@
 using AppointmentEnquiryAPI.Data;
 using AppointmentEnquiryAPI.Models;
+using AppointmentEnquiryAPI.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +11,8 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddScoped<IEnquiryService, EnquiryService>();
 
 builder.Services.AddCors(options =>
 {
@@ -28,48 +31,41 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.EnsureCreated();
 }
 
 app.UseHttpsRedirection();
 
 app.UseCors("AllowAll");
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
-}
+var enquiries = app.MapGroup("/api/enquiries");
 
-app.MapGet("/api/enquiries", async (AppDbContext db) =>
-    await db.Enquiries.OrderByDescending(e => e.DateCreated).ToListAsync())
+enquiries.MapGet("", async (IEnquiryService service) =>
+    await service.GetAllAsync())
     .WithName("GetEnquiries")
     .WithOpenApi();
 
-app.MapPost("/api/enquiries", async (Enquiry enquiry, AppDbContext db) =>
+enquiries.MapPost("", async (Enquiry enquiry, IEnquiryService service) =>
 {
-    db.Enquiries.Add(enquiry);
-    await db.SaveChangesAsync();
-    return Results.Created($"/api/enquiries/{enquiry.Id}", enquiry);
+    var created = await service.CreateAsync(enquiry);
+    return Results.Created($"/api/enquiries/{created.Id}", created);
 })
 .WithName("CreateEnquiry")
 .WithOpenApi();
 
-app.MapDelete("/api/enquiries/{id}", async (int id, AppDbContext db) =>
+enquiries.MapDelete("/{id}", async (int id, IEnquiryService service) =>
 {
-    var enquiry = await db.Enquiries.FindAsync(id);
-    if (enquiry is null) return Results.NotFound();
-    db.Enquiries.Remove(enquiry);
-    await db.SaveChangesAsync();
-    return Results.NoContent();
+    return await service.DeleteAsync(id) ? Results.NoContent() : Results.NotFound();
 })
 .WithName("DeleteEnquiry")
 .WithOpenApi();
 
-app.MapDelete("/api/enquiries", async (AppDbContext db) =>
+enquiries.MapDelete("", async (IEnquiryService service) =>
 {
-    var enquiries = await db.Enquiries.ToListAsync();
-    db.Enquiries.RemoveRange(enquiries);
-    await db.SaveChangesAsync();
+    await service.ClearAllAsync();
     return Results.NoContent();
 })
 .WithName("ClearAllEnquiries")
