@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import './App.css'
+import api from './api'
 import Aurora from './components/Aurora'
 import ShinyText from './components/ShinyText'
 import ConfirmationModal from './components/ConfirmationModal'
@@ -55,8 +56,7 @@ function App() {
 
   const fetchEnquiries = async (highlightId = null) => {
     try {
-      const response = await fetch('http://localhost:5263/api/enquiries')
-      const data = await response.json()
+      const { data } = await api.get('/enquiries')
       setEnquiries(data)
       if (highlightId) {
         setNewlyCreatedId(highlightId)
@@ -132,13 +132,9 @@ function App() {
     if (!enquiryToDelete) return
     setShowDeleteModal(false)
     try {
-      const response = await fetch(`http://localhost:5263/api/enquiries/${enquiryToDelete.id}`, {
-        method: 'DELETE'
-      })
-      if (response.ok) {
-        setEnquiries(prev => prev.filter(e => e.id !== enquiryToDelete.id))
-        setShowDeleteSuccessModal(true)
-      }
+      await api.delete(`/enquiries/${enquiryToDelete.id}`)
+      setEnquiries(prev => prev.filter(e => e.id !== enquiryToDelete.id))
+      setShowDeleteSuccessModal(true)
     } catch (error) {
       console.error('Error deleting enquiry:', error)
     } finally {
@@ -191,45 +187,34 @@ function App() {
     const normalizedPhone = formData.phone.trim().replace(/^0+/, '')
 
     try {
-      const response = await fetch('http://localhost:5263/api/enquiries', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...formData,
-          phone: `${formData.countryCode} ${normalizedPhone}`,
-          preferredDate: selectedDateTime.toISOString()
-        })
+      const { data: result } = await api.post('/enquiries', {
+        ...formData,
+        phone: `${formData.countryCode} ${normalizedPhone}`,
+        preferredDate: selectedDateTime.toISOString()
       })
 
-      if (response.ok) {
-        const result = await response.json()
-        setPendingHighlightId(result.id)
-        setShowSuccessModal(true)
-        setFormData({
-          name: '',
-          email: '',
-          countryCode: '+27',
-          phone: '',
-          enquiryType: '',
-          preferredDate: '',
-          preferredTime: '',
-          notes: ''
-        })
-        setTouched({
-          name: false,
-          email: false,
-          phone: false,
-          enquiryType: false,
-          preferredDate: false,
-          preferredTime: false,
-          notes: false
-        })
-        fetchEnquiries()
-      } else {
-        setMessage('Error submitting enquiry. Please try again.')
-      }
+      setPendingHighlightId(result.id)
+      setShowSuccessModal(true)
+      setFormData({
+        name: '',
+        email: '',
+        countryCode: '+27',
+        phone: '',
+        enquiryType: '',
+        preferredDate: '',
+        preferredTime: '',
+        notes: ''
+      })
+      setTouched({
+        name: false,
+        email: false,
+        phone: false,
+        enquiryType: false,
+        preferredDate: false,
+        preferredTime: false,
+        notes: false
+      })
+      fetchEnquiries()
     } catch (error) {
       setMessage('Error submitting enquiry. Please try again.')
     } finally {
